@@ -1,0 +1,2117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Anima Runtime</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: #f5f5f5; font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+
+.runtime {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.call-control-btn.is-recording::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(248,113,113,0.48);
+    animation: recordPulse 1.4s ease-out infinite;
+}
+
+.call-control-btn.is-recording svg {
+    animation: recordIconPulse 1.4s ease-in-out infinite;
+}
+
+/* ── Character area (canvas/poster/placeholder) ── */
+.character-area {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    min-height: 0;
+    overflow: hidden;
+}
+
+@keyframes recordPulse {
+    0% { transform: scale(0.92); opacity: 0.9; }
+    100% { transform: scale(1.22); opacity: 0; }
+}
+
+@keyframes recordIconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(0.86); }
+}
+.character-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+#stage_canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: none;
+}
+#stage_poster {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    object-position: bottom center;
+    display: none;
+    filter: drop-shadow(0 0 40px rgba(0,0,0,0.5));
+}
+.loading-center {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 96px 20px 180px;
+    background: linear-gradient(180deg, #233240 0%, #1b2733 45%, #16202a 100%);
+    z-index: 20;
+}
+.loading-center.is-hidden { display: none; }
+.loading-encrypt {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(255,255,255,0.52);
+    font-size: 12px;
+    margin-bottom: 30px;
+}
+.loading-encrypt svg {
+    width: 12px;
+    height: 12px;
+    fill: currentColor;
+}
+.loading-avatar-wrap {
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-bottom: 24px;
+    animation: loading-avatar-pulse 2s ease-in-out infinite;
+}
+.loading-avatar-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(37, 211, 102, 0.45);
+    animation: loading-avatar-ring 1.5s ease-out infinite;
+}
+.loading-avatar-wrap::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(37, 211, 102, 0.3);
+    animation: loading-avatar-ring 1.5s ease-out infinite 0.45s;
+}
+.loading-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    background: linear-gradient(135deg, #7c6bbd 0%, #9b7fd4 100%);
+}
+.loading-avatar.is-hidden { display: none; }
+.loading-name {
+    font-size: 26px;
+    font-weight: 500;
+    color: #f5f5f5;
+    margin-bottom: 8px;
+}
+.loading-status {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.62);
+}
+.loading-mask {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    z-index: 21;
+    pointer-events: none;
+}
+.loading-mask.is-hidden { display: none; }
+.loading-spinner {
+    display: none;
+}
+.loading-text {
+    display: none;
+}
+@keyframes loading-avatar-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+}
+@keyframes loading-avatar-ring {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* ── Speech Bubble (Anima style — white, positioned right) ── */
+.speech-bubble {
+    position: absolute;
+    right: 12px;
+    top: 20%;
+    max-width: 55%;
+    min-width: 80px;
+    border-radius: 16px;
+    background: #ffffff;
+    color: #111;
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.65;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.1);
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 10;
+    pointer-events: none;
+    overflow: visible;
+}
+.speech-bubble.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+.speech-bubble::after {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 20px;
+    width: 0;
+    height: 0;
+    border-top: 8px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-right: 10px solid #fff;
+}
+.bubble-inner {
+    max-height: 160px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,0,0,0.12) transparent;
+}
+.bubble-inner::-webkit-scrollbar { width: 4px; }
+.bubble-inner::-webkit-scrollbar-track { background: transparent; }
+.bubble-inner::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+
+.bubble-name {
+    font-size: 10px;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+}
+
+/* Typing dots */
+.bubble-dots {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    height: 18px;
+}
+.bubble-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #999;
+    animation: dot-bounce 1s infinite;
+}
+.bubble-dots span:nth-child(2) { animation-delay: 0.15s; }
+.bubble-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dot-bounce {
+    0%, 100% { transform: translateY(0); opacity: 0.5; }
+    50% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Typewriter cursor */
+.bubble-text-content::after {
+    content: '|';
+    animation: blink-cursor 0.7s step-end infinite;
+    color: #aaa;
+    margin-left: 1px;
+}
+.bubble-text-content.is-done::after { display: none; }
+@keyframes blink-cursor {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* ── Interrupt button (floating red circle) ── */
+.interrupt-btn {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: #ef4444;
+    color: #fff;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 12;
+    box-shadow: 0 4px 12px rgba(239,68,68,0.4);
+}
+.interrupt-btn.is-visible {
+    display: flex;
+}
+.interrupt-btn:hover {
+    background: #dc2626;
+    transform: translateX(-50%) scale(1.1);
+    box-shadow: 0 6px 16px rgba(239,68,68,0.6);
+}
+.interrupt-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* ── Camera panel ── */
+.camera-panel {
+    position: absolute;
+    top: 56px;
+    right: 12px;
+    bottom: auto;
+    width: 118px;
+    padding: 0;
+    border-radius: 18px;
+    overflow: hidden;
+    background: rgba(9, 14, 24, 0.88);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 36px rgba(0,0,0,0.42);
+    display: flex;
+    flex-direction: column;
+    z-index: 18;
+}
+.camera-panel.is-hidden {
+    display: none;
+}
+.camera-panel.is-dragging {
+    user-select: none;
+    box-shadow: 0 24px 44px rgba(0,0,0,0.5);
+}
+.camera-panel-head {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 8px;
+}
+.camera-drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 0;
+    padding: 0;
+    cursor: grab;
+    color: rgba(255,255,255,0.92);
+}
+.camera-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    min-width: 0;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.34);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 10px 18px rgba(0,0,0,0.22);
+}
+.camera-title-badge {
+    display: none;
+}
+.camera-title-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.camera-title-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.92);
+    line-height: 1.1;
+}
+.camera-title-meta {
+    display: none;
+}
+.camera-drag-handle::after {
+    display: none;
+}
+.camera-panel.is-dragging .camera-drag-handle {
+    cursor: grabbing;
+}
+.camera-collapse-btn {
+    display: none;
+}
+.camera-panel-body {
+    display: block;
+}
+.camera-preview-wrap {
+    position: relative;
+    width: 100%;
+    height: 170px;
+    overflow: hidden;
+    border-radius: 18px;
+    background: linear-gradient(160deg, rgba(26, 59, 94, 0.92), rgba(12, 24, 43, 0.94));
+}
+.camera-preview-wrap::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 46%;
+    background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%);
+    pointer-events: none;
+}
+.camera-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+    transform: scaleX(-1);
+}
+.camera-preview.is-visible { display: block; }
+.camera-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.72);
+    background: linear-gradient(180deg, rgba(20, 31, 46, 0.3), rgba(6, 11, 20, 0.55));
+}
+.camera-placeholder.is-hidden { display: none; }
+.camera-capture-btn {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(0,0,0,0.4);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 2;
+    transition: background 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+}
+.camera-capture-btn:hover {
+    background: rgba(0,0,0,0.58);
+    transform: translateY(-1px);
+}
+.camera-capture-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+}
+.camera-capture-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* ── Runtime call HUD ── */
+/* ── Chat Bottom ── */
+.chat-bottom {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 24;
+    padding: 18px 20px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.18) 10%, rgba(0,0,0,0.82) 100%);
+}
+
+/* Mode toggle */
+.mode-toggle {
+    display: none;
+}
+
+/* Text mode */
+.text-mode-area {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    max-width: 340px;
+}
+.text-input-wrap {
+    flex: 1;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 100px;
+    backdrop-filter: blur(12px);
+}
+.text-input {
+    width: 100%;
+    padding: 10px 18px;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    font-family: inherit;
+    color: #f5f5f5;
+}
+.text-input::placeholder { color: rgba(255,255,255,0.45); }
+.send-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: #f5f5f5;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+.send-btn:hover { background: #e0e0e0; transform: scale(1.06); }
+.send-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.send-btn svg { color: #000; }
+
+.call-actions {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: clamp(22px, 7vw, 42px);
+}
+.call-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-width: 58px;
+}
+.call-control-btn {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.16);
+    backdrop-filter: blur(10px);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
+}
+.call-control-btn svg {
+    width: 22px;
+    height: 22px;
+}
+.call-control-btn:hover {
+    background: rgba(255,255,255,0.28);
+}
+.call-control-btn:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+    transform: none;
+    background: rgba(255,255,255,0.1);
+}
+.call-control-btn:disabled:hover {
+    background: rgba(255,255,255,0.1);
+}
+.call-control-btn:active {
+    transform: scale(0.92);
+}
+.call-control-btn.is-active {
+    background: #fff;
+    color: #111827;
+}
+.call-control-btn.is-recording {
+    background: #ef4444;
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(239,68,68,0.42);
+}
+.call-control-btn.is-sending {
+    opacity: 0.5;
+    pointer-events: none;
+}
+.call-control-btn--end {
+    width: 64px;
+    height: 64px;
+    background: #ef4444;
+    border-color: transparent;
+    box-shadow: 0 8px 24px rgba(239,68,68,0.42);
+}
+.call-control-btn--end:hover {
+    background: #dc2626;
+}
+.call-action-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.72);
+}
+
+.interrupt-btn {
+    display: none !important;
+}
+
+@media (max-width: 640px) {
+    .camera-panel {
+        top: 52px;
+        right: 10px;
+        width: 108px;
+    }
+
+    .camera-preview-wrap {
+        height: 154px;
+    }
+
+    .chat-bottom {
+        padding: 18px 16px 22px;
+    }
+
+    .call-actions {
+        gap: 24px;
+    }
+
+    .call-control-btn {
+        width: 54px;
+        height: 54px;
+    }
+
+    .call-control-btn--end {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+
+</style>
+</head>
+<body>
+<main class="runtime">
+    <!-- Character display area -->
+    <div class="character-area" id="character_area">
+        <div class="character-inner">
+            <canvas id="stage_canvas"></canvas>
+            <img id="stage_poster" alt="Avatar" />
+        </div>
+        <!-- Loading center (Telegram-style invite) -->
+        <div class="loading-center" id="loading_center">
+            <div class="loading-encrypt">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
+                <span>End-to-end encrypted</span>
+            </div>
+            <div class="loading-avatar-wrap">
+                <img class="loading-avatar" id="loading_avatar" alt="" />
+            </div>
+            <div class="loading-name" id="loading_name">Avatar</div>
+            <div class="loading-status" id="loading_status">Connecting video call...</div>
+        </div>
+        <div class="loading-mask" id="loading_mask">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">视频电话正在接通中...</div>
+        </div>
+        <!-- Speech bubble (Anima style) -->
+        <div class="speech-bubble" id="speech_bubble">
+            <div class="bubble-inner">
+                <div class="bubble-name" id="bubble_name">AVATAR</div>
+                <div class="bubble-dots" id="bubble_dots" style="display:none">
+                    <span></span><span></span><span></span>
+                </div>
+                <span class="bubble-text-content" id="bubble_text"></span>
+            </div>
+        </div>
+        <div class="camera-panel" id="camera_panel">
+            <div class="camera-panel-head">
+                <div class="camera-drag-handle" id="camera_drag_handle">
+                    <div class="camera-title">
+                        <span class="camera-title-badge" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14" />
+                                <rect x="3" y="6" width="12" height="12" rx="3" ry="3" />
+                            </svg>
+                        </span>
+                        <span class="camera-title-text">
+                            <span class="camera-title-label">You</span>
+                            <span class="camera-title-meta" id="camera_title_meta">Drag panel</span>
+                        </span>
+                    </div>
+                </div>
+                <button class="camera-collapse-btn" id="camera_collapse_btn" type="button" title="Collapse camera panel" aria-expanded="true" aria-label="Collapse camera panel">
+                    <span class="camera-collapse-btn__icon camera-collapse-btn__icon--panel" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                            <path d="M7 12h10" />
+                        </svg>
+                    </span>
+                    <span class="camera-collapse-btn__icon camera-collapse-btn__icon--launcher" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14" />
+                            <rect x="3" y="6" width="12" height="12" rx="3" ry="3" />
+                        </svg>
+                    </span>
+                </button>
+            </div>
+            <div class="camera-panel-body" id="camera_panel_body">
+                <div class="camera-preview-wrap">
+                    <video id="camera_preview" class="camera-preview" autoplay playsinline muted></video>
+                    <div class="camera-placeholder" id="camera_placeholder">Turn on the camera to show your preview</div>
+                    <button class="camera-capture-btn" id="camera_capture_btn" type="button" title="Capture snapshot" aria-label="Capture snapshot" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M8 7l1.4-2h5.2L16 7h2a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"></path>
+                            <circle cx="12" cy="12.5" r="3.5"></circle>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Interrupt button -->
+        <button class="interrupt-btn" id="interrupt_btn" title="Stop">
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        </button>
+    </div>
+
+    <!-- Chat bottom area (hidden during loading) -->
+    <div class="chat-bottom" id="chat_bottom">
+        <div class="call-actions" aria-label="Call controls">
+            <div class="call-action">
+                <button id="camera_toggle_btn" class="call-control-btn" type="button" title="Turn camera on" aria-label="Turn camera on" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14"></path>
+                        <rect x="3" y="6" width="12" height="12" rx="3" ry="3"></rect>
+                    </svg>
+                </button>
+                <span id="camera_toggle_label" class="call-action-label">Camera</span>
+            </div>
+            <div class="call-action">
+                <button id="hangup_btn" class="call-control-btn call-control-btn--end" type="button" title="Hang up" aria-label="Hang up">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M2.25 6.75A.75.75 0 0 1 3 6h3.75a.75.75 0 0 1 .75.648l.54 3.78a.75.75 0 0 1-.216.648l-1.59 1.59a11.037 11.037 0 0 0 5.096 5.096l1.59-1.59a.75.75 0 0 1 .648-.216l3.78.54a.75.75 0 0 1 .648.75V21a.75.75 0 0 1-.75.75h-1.5C8.268 21.75 2.25 15.732 2.25 8.25v-1.5a.75.75 0 0 1 .75-.75Zm12.53 5.72a.75.75 0 0 1 1.06 0L17 13.63l1.16-1.16a.75.75 0 1 1 1.06 1.06L18.06 14.7l1.16 1.16a.75.75 0 1 1-1.06 1.06L17 15.76l-1.16 1.16a.75.75 0 1 1-1.06-1.06l1.16-1.16-1.16-1.16a.75.75 0 0 1 0-1.06Z"></path>
+                    </svg>
+                </button>
+                <span class="call-action-label">End</span>
+            </div>
+            <div class="call-action">
+                <button id="chat_mic_btn" class="call-control-btn" type="button" title="Start recording" aria-label="Start recording" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                    </svg>
+                </button>
+                <span id="chat_mic_label" class="call-action-label">Voice</span>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script type="module">
+import AvatarJS from './runtime-avatar.js';
+import { atfDt, ttsTransform, asrBase64 } from './runtime-api.js';
+
+// ──── State ────
+let latestPayload = null;
+let renderer = null;
+let rendererModelUrl = '';
+let lastBindingKey = '';
+let lastAutoReplyEventId = 0;
+let lastBusyState = false;
+let avatarName = 'Avatar';
+let isBroadcasting = false;
+
+// Active lip-sync tracking
+let activeLipSyncAbort = null;
+let activeLipSyncTimer = null;
+
+// Acknowledgment tracking
+let ackAbort = null;
+let ackTimer = null;
+let isAckPlaying = false;
+
+// Audio playback
+let currentAudio = null;
+
+// Typewriter state
+let typewriterTimer = null;
+
+// Camera state
+let cameraStream = null;
+let cameraStartPromise = null;
+let cameraPanelDrag = null;
+let isCameraPanelCollapsed = false;
+let suppressCameraCollapseClick = false;
+let callStartedAt = 0;
+let callTimerHandle = null;
+
+// ──── Acknowledgment phrases ────
+const ACK_PHRASES = [
+    '让我想想…',
+    '嗯…',
+    '稍等一下…',
+    '我想一下…',
+    '好的，让我思考一下…',
+    'Let me think…',
+    'Hmm…',
+    'One moment…',
+    'Let me see…',
+];
+
+// ──── Helpers ────
+function $(id) { return document.getElementById(id); }
+
+function setStatus(text, busy = false) {
+    if (isLoading) {
+        const loadingStatus = $('loading_status');
+        if (loadingStatus && text) {
+            loadingStatus.textContent = text;
+        }
+    }
+    try {
+        window.parent.postMessage({ type: 'anima-runtime-report', status: text }, '*');
+    } catch { /* sandboxed */ }
+}
+
+function updateCallTimerDisplay() {
+    const timer = $('call_timer');
+    if (!timer) return;
+    if (!callStartedAt) {
+        timer.textContent = '00:00';
+        return;
+    }
+
+    const totalSeconds = Math.max(0, Math.floor((Date.now() - callStartedAt) / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    timer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function startCallTimer() {
+    if (!callStartedAt) {
+        callStartedAt = Date.now();
+    }
+    updateCallTimerDisplay();
+    if (callTimerHandle) return;
+    callTimerHandle = window.setInterval(updateCallTimerDisplay, 1000);
+}
+
+function stopCallTimer(reset = false) {
+    if (callTimerHandle) {
+        clearInterval(callTimerHandle);
+        callTimerHandle = null;
+    }
+    if (reset) {
+        callStartedAt = 0;
+    }
+    updateCallTimerDisplay();
+}
+
+function updateRecordingButton(recording) {
+    const button = $('chat_mic_btn');
+    const label = $('chat_mic_label');
+    if (!button || !label) return;
+
+    button.classList.toggle('is-recording', recording);
+    button.setAttribute('aria-pressed', String(recording));
+    button.setAttribute('title', recording ? 'Stop recording' : 'Start recording');
+    button.setAttribute('aria-label', recording ? 'Stop recording' : 'Start recording');
+    label.textContent = recording ? 'Stop' : 'Voice';
+}
+
+function setLoadingActionButtonsDisabled(disabled) {
+    $('camera_toggle_btn').disabled = disabled;
+    $('chat_mic_btn').disabled = disabled;
+}
+
+function hangupCall() {
+    stopPlaying();
+    stopRecording();
+    stopCameraStream();
+
+    try {
+        window.parent.postMessage({ type: 'anima-runtime-command', command: 'hangup' }, '*');
+    } catch { /* sandboxed */ }
+}
+
+function updateInterruptBtn() {
+    $('interrupt_btn').classList.toggle('is-visible', isBroadcasting);
+}
+
+function setBroadcasting(val) {
+    isBroadcasting = val;
+    updateInterruptBtn();
+}
+
+function setAvatarName(name) {
+    avatarName = name || 'Avatar';
+    $('bubble_name').textContent = avatarName.toUpperCase();
+}
+
+function setCameraStatus(text) {
+    void text;
+}
+
+function setCameraPanelVisible(visible) {
+    $('camera_panel').classList.toggle('is-hidden', !visible);
+}
+
+function hasManualCameraPanelPosition() {
+    const panel = $('camera_panel');
+    return Boolean(panel && panel.style.left !== '' && panel.style.top !== '');
+}
+
+function setCameraPanelPosition(left, top) {
+    const panel = $('camera_panel');
+    if (!panel) return;
+
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+}
+
+function clampCameraPanelCoords(left, top) {
+    const panel = $('camera_panel');
+    const area = $('character_area');
+    if (!panel || !area) {
+        return { left, top };
+    }
+
+    return {
+        left: Math.min(Math.max(0, left), Math.max(0, area.clientWidth - panel.offsetWidth)),
+        top: Math.min(Math.max(0, top), Math.max(0, area.clientHeight - panel.offsetHeight)),
+    };
+}
+
+function clampCameraPanelPosition() {
+    const panel = $('camera_panel');
+    const area = $('character_area');
+    if (!panel || !area || !hasManualCameraPanelPosition()) return;
+
+    const { left, top } = clampCameraPanelCoords(
+        Number.parseFloat(panel.style.left) || 0,
+        Number.parseFloat(panel.style.top) || 0,
+    );
+
+    setCameraPanelPosition(left, top);
+}
+
+function updateCameraPanelCollapsed(collapsed) {
+    isCameraPanelCollapsed = collapsed;
+    const panel = $('camera_panel');
+    const button = $('camera_collapse_btn');
+    const titleMeta = $('camera_title_meta');
+    const area = $('character_area');
+    if (!panel || !button) return;
+
+    // Before toggling, snapshot the panel's edges relative to area
+    let panelEdge = null;
+    if (area) {
+        const areaRect = area.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const leftInset = panelRect.left - areaRect.left;
+        const rightInset = areaRect.right - panelRect.right;
+        const topInset = panelRect.top - areaRect.top;
+        panelEdge = {
+            pinX: rightInset <= leftInset ? 'right' : 'left',
+            left: leftInset,
+            right: rightInset,
+            top: topInset,
+        };
+    }
+
+    // Disable transition so offsetWidth/offsetHeight return the final values
+    panel.style.transition = 'none';
+
+    panel.classList.toggle('is-collapsed', collapsed);
+    panel.classList.remove('is-dragging');
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.setAttribute('title', collapsed ? 'Expand camera panel' : 'Collapse camera panel');
+    button.setAttribute('aria-label', collapsed ? 'Expand camera panel' : 'Collapse camera panel');
+    if (titleMeta) {
+        titleMeta.textContent = collapsed ? 'Preview hidden' : 'Drag panel';
+    }
+
+    // Force reflow so the browser computes the new dimensions
+    void panel.offsetWidth;
+
+    // After toggling, reposition: pin horizontal edge, keep top stable
+    if (panelEdge && area) {
+        const newLeft = panelEdge.pinX === 'right'
+            ? area.clientWidth - panelEdge.right - panel.offsetWidth
+            : panelEdge.left;
+        const clamped = clampCameraPanelCoords(newLeft, panelEdge.top);
+        setCameraPanelPosition(clamped.left, clamped.top);
+    }
+
+    clampCameraPanelPosition();
+
+    // Re-enable transition on next frame
+    requestAnimationFrame(() => { panel.style.transition = ''; });
+}
+
+function toggleCameraPanelCollapsed() {
+    updateCameraPanelCollapsed(!isCameraPanelCollapsed);
+}
+
+function updateCameraUi(active) {
+    $('camera_panel').classList.toggle('is-camera-live', active);
+    $('camera_preview').classList.toggle('is-visible', active);
+    $('camera_placeholder').classList.toggle('is-hidden', active);
+    $('camera_capture_btn').disabled = !active;
+    $('camera_toggle_btn').classList.toggle('is-active', active);
+    $('camera_toggle_btn').setAttribute('aria-pressed', String(active));
+    $('camera_toggle_btn').setAttribute('title', active ? 'Turn camera off' : 'Turn camera on');
+    $('camera_toggle_btn').setAttribute('aria-label', active ? 'Turn camera off' : 'Turn camera on');
+    setCameraPanelVisible(active && !isLoading);
+}
+
+function beginCameraPanelDrag(event) {
+    if (event.button !== 0) return;
+
+    const panel = $('camera_panel');
+    const area = $('character_area');
+    if (!panel || !area) return;
+
+    const panelRect = panel.getBoundingClientRect();
+    const areaRect = area.getBoundingClientRect();
+    cameraPanelDrag = {
+        startX: event.clientX,
+        startY: event.clientY,
+        offsetX: event.clientX - panelRect.left,
+        offsetY: event.clientY - panelRect.top,
+        hasMoved: false,
+        startedCollapsed: isCameraPanelCollapsed,
+    };
+
+    panel.style.left = `${panelRect.left - areaRect.left}px`;
+    panel.style.top = `${panelRect.top - areaRect.top}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+}
+
+function dragCameraPanel(event) {
+    if (!cameraPanelDrag) return;
+
+    const panel = $('camera_panel');
+    const area = $('character_area');
+    if (!panel || !area) return;
+
+    if (!cameraPanelDrag.hasMoved) {
+        const deltaX = event.clientX - cameraPanelDrag.startX;
+        const deltaY = event.clientY - cameraPanelDrag.startY;
+        if (Math.hypot(deltaX, deltaY) < 6) {
+            return;
+        }
+        cameraPanelDrag.hasMoved = true;
+        panel.classList.add('is-dragging');
+    }
+
+    const areaRect = area.getBoundingClientRect();
+    const maxLeft = Math.max(0, area.clientWidth - panel.offsetWidth);
+    const maxTop = Math.max(0, area.clientHeight - panel.offsetHeight);
+    const left = Math.min(Math.max(0, event.clientX - areaRect.left - cameraPanelDrag.offsetX), maxLeft);
+    const top = Math.min(Math.max(0, event.clientY - areaRect.top - cameraPanelDrag.offsetY), maxTop);
+
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+}
+
+function endCameraPanelDrag() {
+    if (!cameraPanelDrag) return;
+    if (cameraPanelDrag.hasMoved && cameraPanelDrag.startedCollapsed) {
+        suppressCameraCollapseClick = true;
+    }
+    cameraPanelDrag = null;
+    $('camera_panel')?.classList.remove('is-dragging');
+}
+
+async function waitForVideoMetadata(video) {
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
+        return;
+    }
+
+    await new Promise((resolve, reject) => {
+        const onLoaded = () => {
+            cleanup();
+            resolve(undefined);
+        };
+        const onError = () => {
+            cleanup();
+            reject(new Error('Camera preview failed to initialize'));
+        };
+        const cleanup = () => {
+            video.removeEventListener('loadedmetadata', onLoaded);
+            video.removeEventListener('error', onError);
+        };
+
+        video.addEventListener('loadedmetadata', onLoaded, { once: true });
+        video.addEventListener('error', onError, { once: true });
+    });
+}
+
+function stopCameraStream() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+
+    const video = $('camera_preview');
+    video.pause();
+    video.srcObject = null;
+    updateCameraUi(false);
+    setCameraPanelVisible(false);
+    setCameraStatus('Camera off');
+}
+
+async function startCameraStream() {
+    if (cameraStream) {
+        updateCameraUi(true);
+        setCameraStatus('Camera live');
+        return;
+    }
+
+    if (cameraStartPromise) {
+        await cameraStartPromise;
+        return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraStatus('Camera unavailable in this browser');
+        return;
+    }
+
+    setCameraStatus('Starting camera...');
+    cameraStartPromise = (async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'user',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                },
+                audio: false,
+            });
+
+            const video = $('camera_preview');
+            cameraStream = stream;
+            video.srcObject = stream;
+            await waitForVideoMetadata(video);
+            await video.play().catch(() => {});
+            updateCameraUi(true);
+            setCameraPanelVisible(!isLoading);
+            setCameraStatus('Camera live');
+        } catch (err) {
+            console.warn('[Anima Runtime] Camera access failed:', err);
+            stopCameraStream();
+            setCameraStatus('Camera permission denied');
+        } finally {
+            cameraStartPromise = null;
+        }
+    })();
+
+    await cameraStartPromise;
+}
+
+async function toggleCameraStream() {
+    if (cameraStream) {
+        stopCameraStream();
+        return;
+    }
+
+    await startCameraStream();
+}
+
+function captureCameraFrame() {
+    if (!cameraStream) {
+        setCameraStatus('Open the camera first');
+        return;
+    }
+
+    const video = $('camera_preview');
+    if (!video.videoWidth || !video.videoHeight) {
+        setCameraStatus('Camera not ready');
+        return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+        setCameraStatus('Capture failed');
+        return;
+    }
+
+    context.translate(canvas.width, 0);
+    context.scale(-1, 1);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const imageDataUrl = canvas.toDataURL('image/png');
+    const text = '';
+
+    try {
+        window.parent.postMessage({
+            type: 'anima-runtime-command',
+            command: 'camera-capture',
+            imageDataUrl,
+            text,
+        }, '*');
+    } catch {
+        setCameraStatus('Snapshot failed to send');
+    }
+}
+
+// ──── Loading state ────
+let isLoading = true;
+
+function enterLoadingState(posterUrl, name) {
+    isLoading = true;
+    stopCallTimer(true);
+    setLoadingActionButtonsDisabled(true);
+    // Show loading center with avatar info
+    const avatar = $('loading_avatar');
+    if (posterUrl) {
+        avatar.src = posterUrl;
+        avatar.classList.remove('is-hidden');
+    } else {
+        avatar.classList.add('is-hidden');
+    }
+    $('loading_name').textContent = name || avatarName || 'Avatar';
+    $('loading_center').classList.remove('is-hidden');
+    $('loading_mask').classList.remove('is-hidden');
+    setCameraPanelVisible(false);
+    $('loading_status').textContent = 'Connecting video call...';
+    $('chat_bottom').style.display = '';
+    $('speech_bubble').classList.remove('is-visible');
+    $('interrupt_btn').classList.remove('is-visible');
+}
+
+function exitLoadingState() {
+    isLoading = false;
+    setLoadingActionButtonsDisabled(false);
+    $('loading_center').classList.add('is-hidden');
+    $('loading_mask').classList.add('is-hidden');
+    startCallTimer();
+    setCameraPanelVisible(Boolean(cameraStream));
+    // Show chat UI
+    $('chat_bottom').style.display = '';
+}
+
+function showCanvas() {
+    $('stage_canvas').style.display = 'block';
+    $('stage_poster').style.display = 'none';
+    exitLoadingState();
+}
+
+function showPoster(url) {
+    if (renderer) return;
+    const poster = $('stage_poster');
+    poster.src = url;
+    poster.style.display = '';
+    $('stage_canvas').style.display = 'none';
+    exitLoadingState();
+}
+
+function showPlaceholder() {
+    if (renderer) return;
+    $('stage_canvas').style.display = 'none';
+    $('stage_poster').style.display = 'none';
+    // Stay in loading state — the loading center is already visible
+}
+
+// ──── Speech Bubble + Typewriter ────
+
+function showBubble() {
+    // Hidden for now
+    return;
+}
+
+function hideBubble() {
+    $('speech_bubble').classList.remove('is-visible');
+}
+
+function showDots() {
+    $('bubble_text').style.display = 'none';
+    $('bubble_dots').style.display = '';
+    showBubble();
+}
+
+function hideDots() {
+    $('bubble_dots').style.display = 'none';
+    $('bubble_text').style.display = '';
+}
+
+/**
+ * @param {string} text
+ * @param {number} durationMs — total time to reveal all characters
+ */
+function startTypewriter(text, durationMs) {
+    stopTypewriter(false);
+    hideDots();
+    const el = $('bubble_text');
+    el.textContent = '';
+    el.classList.remove('is-done');
+    showBubble();
+
+    const chars = [...text];
+    const total = chars.length;
+    if (total === 0) return;
+    const interval = Math.max(durationMs / total, 25);
+    let idx = 0;
+
+    typewriterTimer = setInterval(() => {
+        if (idx < total) {
+            el.textContent += chars[idx];
+            idx++;
+        } else {
+            stopTypewriter(true);
+        }
+    }, interval);
+}
+
+function stopTypewriter(applyFull) {
+    if (typewriterTimer) {
+        clearInterval(typewriterTimer);
+        typewriterTimer = null;
+    }
+    if (applyFull) {
+        $('bubble_text').classList.add('is-done');
+    }
+}
+
+function clearBubble() {
+    stopTypewriter(false);
+    hideBubble();
+    $('bubble_text').textContent = '';
+    $('bubble_text').classList.remove('is-done');
+}
+
+// ──── Interrupt (stop playing) ────
+
+function stopPlaying() {
+    stopTypewriter(true);
+    cancelAcknowledgment();
+    cancelLipSync();
+    stopAudio();
+    if (renderer) renderer.stopPlay();
+    setBroadcasting(false);
+    setStatus('Idle');
+    // Also tell parent to stop generation if in progress
+    try {
+        window.parent.postMessage({ type: 'anima-runtime-command', command: 'interrupt' }, '*');
+    } catch { /* sandboxed */ }
+}
+
+// ──── Renderer lifecycle ────
+function ensureRenderer(binding) {
+    const modelUrl = binding?.modelUrl || '';
+    if (!modelUrl) {
+        destroyRenderer();
+        if (binding?.posterUrl) {
+            showPoster(binding.posterUrl);
+            setStatus('Poster mode (no 3D model)');
+        } else {
+            // No model, no poster — stay in loading / show poster-less state
+            enterLoadingState(null, binding?.avatarName || avatarName);
+            setStatus('No model');
+        }
+        return;
+    }
+
+    if (renderer && rendererModelUrl === modelUrl) return;
+    destroyRenderer();
+    rendererModelUrl = modelUrl;
+
+    enterLoadingState(binding?.posterUrl, binding?.avatarName || avatarName);
+    setStatus('Loading 3D model...', true);
+    const canvas = $('stage_canvas');
+    const CANVAS_W = 768;
+    const CANVAS_H = 1024;
+
+    renderer = new AvatarJS(
+        { canvas, canvasWidth: CANVAS_W, canvasHeight: CANVAS_H },
+        () => { showCanvas(); setStatus('Model loaded'); },
+        () => { /* onAnimationReady */ },
+        () => { setStatus('Idle'); stopAudio(); setBroadcasting(false); },
+        (err) => {
+            console.warn('[Anima Runtime] AvatarJS error:', err);
+            setStatus('Renderer error');
+            if (!renderer) {
+                if (binding?.posterUrl) showPoster(binding.posterUrl);
+            }
+        },
+        modelUrl,
+    );
+}
+
+function destroyRenderer() {
+    if (renderer) { renderer.close(); renderer = null; }
+    rendererModelUrl = '';
+    try {
+        const canvas = $('stage_canvas');
+        if (canvas && canvas.parentNode) {
+            const newCanvas = document.createElement('canvas');
+            newCanvas.id = canvas.id;
+            newCanvas.style.cssText = canvas.style.cssText;
+            canvas.parentNode.replaceChild(newCanvas, canvas);
+        }
+    } catch { /* ignore */ }
+}
+
+function fullCleanup() {
+    cancelLipSync();
+    cancelAcknowledgment();
+    clearBubble();
+    stopAudio();
+    stopCameraStream();
+    stopCallTimer(true);
+    destroyRenderer();
+    setBroadcasting(false);
+    latestPayload = null;
+    rendererModelUrl = '';
+    lastBindingKey = '';
+    lastAutoReplyEventId = 0;
+    lastBusyState = false;
+    $('stage_canvas').style.display = 'none';
+    $('stage_poster').style.display = 'none';
+    enterLoadingState(null, 'Avatar');
+    setStatus('Runtime ready');
+}
+
+// ──── Audio format conversion ────
+
+/** Shared AudioContext for decoding audio data. */
+let _sharedAudioCtx = null;
+function getAudioCtx() {
+    if (!_sharedAudioCtx) _sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return _sharedAudioCtx;
+}
+
+/**
+ * Convert any browser-decodable audio (MP3, Opus, etc.) to 16-bit PCM WAV base64.
+ * The atfDt API only accepts WAV.
+ * @param {string} rawBase64 raw base64 audio (no data: prefix)
+ * @param {string} [mimeType] original MIME type (for data-URI construction)
+ * @returns {Promise<string>} WAV audio as raw base64 (no data: prefix)
+ */
+async function convertToWavBase64(rawBase64, mimeType) {
+    const audioBuffer = await decodeBase64ToAudioBuffer(rawBase64);
+    return audioBufferToWavBase64(audioBuffer);
+}
+
+/**
+ * Decode raw base64 audio into an AudioBuffer.
+ * @param {string} rawBase64
+ * @returns {Promise<AudioBuffer>}
+ */
+async function decodeBase64ToAudioBuffer(rawBase64) {
+    const binaryStr = atob(rawBase64);
+    const len = binaryStr.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binaryStr.charCodeAt(i);
+    const audioCtx = getAudioCtx();
+    return audioCtx.decodeAudioData(bytes.buffer.slice(0));
+}
+
+/**
+ * Encode an AudioBuffer (or a slice of it) into 16-bit PCM WAV base64.
+ * @param {AudioBuffer} audioBuffer
+ * @param {number} [startFrame=0] first frame (inclusive)
+ * @param {number} [endFrame] last frame (exclusive), defaults to audioBuffer.length
+ * @returns {string} raw base64 WAV
+ */
+function audioBufferToWavBase64(audioBuffer, startFrame = 0, endFrame) {
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const bitsPerSample = 16;
+    const bytesPerSample = bitsPerSample / 8;
+    const end = endFrame ?? audioBuffer.length;
+    const numFrames = end - startFrame;
+    const dataSize = numFrames * numChannels * bytesPerSample;
+
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+    view.setUint16(32, numChannels * bytesPerSample, true);
+    view.setUint16(34, bitsPerSample, true);
+    writeStr(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    const channels = [];
+    for (let ch = 0; ch < numChannels; ch++) channels.push(audioBuffer.getChannelData(ch));
+
+    let offset = 44;
+    for (let i = startFrame; i < end; i++) {
+        for (let ch = 0; ch < numChannels; ch++) {
+            const sample = Math.max(-1, Math.min(1, channels[ch][i]));
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+            offset += 2;
+        }
+    }
+
+    const wavBytes = new Uint8Array(buffer);
+    let wavBinary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < wavBytes.length; i += chunkSize) {
+        wavBinary += String.fromCharCode.apply(null, wavBytes.subarray(i, i + chunkSize));
+    }
+    return btoa(wavBinary);
+}
+
+/** Maximum chunk duration in seconds for atfDt (API limit is 60s, use 50s for safety). */
+const ATF_MAX_CHUNK_SECS = 50;
+
+/**
+ * Convert audio to WAV and split into chunks if longer than ATF_MAX_CHUNK_SECS.
+ * @param {string} rawBase64
+ * @param {string} [mimeType]
+ * @returns {Promise<{ wavChunks: string[], totalDurationMs: number }>}
+ */
+async function convertAndSplitWav(rawBase64, mimeType) {
+    const audioBuffer = await decodeBase64ToAudioBuffer(rawBase64);
+    const totalDurationMs = (audioBuffer.length / audioBuffer.sampleRate) * 1000;
+    const maxFrames = ATF_MAX_CHUNK_SECS * audioBuffer.sampleRate;
+
+    if (audioBuffer.length <= maxFrames) {
+        return { wavChunks: [audioBufferToWavBase64(audioBuffer)], totalDurationMs };
+    }
+
+    // Split into chunks
+    const wavChunks = [];
+    for (let start = 0; start < audioBuffer.length; start += maxFrames) {
+        const end = Math.min(start + maxFrames, audioBuffer.length);
+        wavChunks.push(audioBufferToWavBase64(audioBuffer, start, end));
+    }
+    console.info(`[Anima Runtime] Split audio into ${wavChunks.length} chunks (total ${(totalDurationMs / 1000).toFixed(1)}s)`);
+    return { wavChunks, totalDurationMs };
+}
+
+// ──── Audio playback ────
+function playAudioBase64(base64, mimeType) {
+    stopAudio();
+    if (!base64) return null;
+    const audio = new Audio();
+    const mime = mimeType || 'audio/mp3';
+    audio.src = base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
+    console.info('[Anima Runtime] playAudioBase64 called, mime:', mime, 'b64 len:', base64?.length);
+    audio.play().catch(e => console.warn('[Anima Runtime] Audio play failed:', e));
+    currentAudio = audio;
+    return audio;
+}
+
+function stopAudio() {
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio = null;
+    }
+}
+
+// ──── Lip-sync pipeline ────
+async function runLipSync(text, manual = false) {
+    console.info('[Anima Runtime] runLipSync called, manual:', manual, 'text:', text?.slice(0, 50));
+    const payload = latestPayload;
+    if (!payload) return;
+    const config = payload.config;
+    const binding = payload.binding;
+    const voiceId = binding?.voiceId || config?.defaultVoiceId || '1';
+    const modelId = binding?.modelId || binding?.remoteAvatarId || '';
+
+    if (!text || !modelId) {
+        setStatus('Missing text or model ID for lip-sync');
+        return;
+    }
+
+    cancelAcknowledgment();
+    cancelLipSync();
+
+    const abort = new AbortController();
+    activeLipSyncAbort = abort;
+    const requestId = Date.now();
+
+    try {
+        setStatus('TTS processing...', true);
+        setBroadcasting(true);
+
+        const ttsResult = await ttsTransform(text, voiceId, config, { signal: abort.signal });
+        if (abort.signal.aborted) return;
+
+        const audioBase64 = ttsResult?.data?.audioBase64 || '';
+        const audioLen = ttsResult?.data?.audioLen || 0;
+
+        if (!audioBase64) {
+            setStatus('TTS returned no audio');
+            setBroadcasting(false);
+            return;
+        }
+
+        setStatus('Generating lip-sync...', true);
+        const traceId = `ls-${requestId}`;
+        const atfResult = await atfDt(audioBase64, modelId, traceId, config, { signal: abort.signal });
+        if (abort.signal.aborted) return;
+
+        const atfData = atfResult?.data;
+        if (!atfData?.AK) {
+            setStatus('Playing audio (no animation)', true);
+            const durationMs = (audioLen || 5) * 1000;
+            startTypewriter(text, durationMs);
+
+            activeLipSyncTimer = setTimeout(() => {
+                stopAudio();
+                stopTypewriter(true);
+                setBroadcasting(false);
+                setStatus('Idle');
+                setTimeout(() => { if (!isAckPlaying) hideBubble(); }, 2500);
+            }, durationMs + 800);
+            return;
+        }
+
+        setStatus('Speaking', true);
+        const durationMs = (audioLen || 5) * 1000;
+        startTypewriter(text, durationMs);
+
+        if (renderer) {
+            renderer.receiveData(atfData, false, () => renderer.startPlay2());
+        }
+
+        const stopMs = durationMs + 800;
+        activeLipSyncTimer = setTimeout(() => {
+            if (renderer) renderer.stopPlay();
+            stopAudio();
+            stopTypewriter(true);
+            setBroadcasting(false);
+            setStatus('Idle');
+            setTimeout(() => { if (!isAckPlaying) hideBubble(); }, 2500);
+        }, stopMs);
+
+    } catch (error) {
+        if (abort.signal.aborted) return;
+        console.error('[Anima Runtime] Lip-sync error:', error);
+        setStatus('Lip-sync error: ' + (error?.message || error));
+        setBroadcasting(false);
+    }
+}
+
+function cancelLipSync() {
+    if (activeLipSyncAbort) { activeLipSyncAbort.abort(); activeLipSyncAbort = null; }
+    if (activeLipSyncTimer) { clearTimeout(activeLipSyncTimer); activeLipSyncTimer = null; }
+    if (renderer) renderer.stopPlay();
+    stopAudio();
+    clearBubble();
+    setBroadcasting(false);
+    // Notify parent so externalTtsProcessing resets and the queue can continue
+    notifyTtsDone();
+}
+
+// ──── External TTS lip-sync (audio from ST TTS extension) ────
+
+/**
+ * Play external audio (from ST TTS) through the avatar with atfDt lip-sync.
+ * Skips Anima's ttsTransform — uses the pre-generated audio directly.
+ * When done, posts 'anima-runtime-tts-done' to parent so the queue advances.
+ * @param {string} audioBase64 raw base64 audio (no data: prefix)
+ * @param {string} text display text for typewriter
+ */
+async function runExternalTtsLipSync(audioBase64, text, mimeType) {
+    const payload = latestPayload;
+    console.info('[Anima Runtime] runExternalTtsLipSync:', { hasPayload: !!payload, b64Len: audioBase64?.length, hasConfig: !!payload?.config, apiBase: payload?.config?.apiBaseUrl?.slice(0, 30) });
+    if (!payload || !audioBase64) {
+        console.warn('[Anima Runtime] No payload or audioBase64, aborting');
+        notifyTtsDone();
+        return;
+    }
+    const config = payload.config;
+    const binding = payload.binding;
+    const modelId = binding?.modelId || binding?.remoteAvatarId || '';
+    console.info('[Anima Runtime] modelId:', modelId, 'voiceId:', binding?.voiceId);
+
+    cancelAcknowledgment();
+    cancelLipSync();
+
+    if (!modelId) {
+        // No model — just play audio without animation
+        const audio = playAudioBase64(audioBase64, mimeType);
+        setBroadcasting(true);
+        setStatus('Speaking (no model)', true);
+        if (audio) {
+            audio.addEventListener('ended', () => {
+                setBroadcasting(false);
+                setStatus('Idle');
+                notifyTtsDone();
+            }, { once: true });
+            audio.addEventListener('error', () => {
+                setBroadcasting(false);
+                setStatus('Idle');
+                notifyTtsDone();
+            }, { once: true });
+        } else {
+            notifyTtsDone();
+        }
+        return;
+    }
+
+    const abort = new AbortController();
+    activeLipSyncAbort = abort;
+
+    try {
+        setBroadcasting(true);
+        setStatus('Converting audio...', true);
+
+        // Convert to WAV and split into ≤50s chunks (atfDt limit is 60s)
+        let wavChunks, totalDurationMs;
+        const needConvert = !mimeType || (mimeType !== 'audio/wav' && mimeType !== 'audio/wave' && mimeType !== 'audio/x-wav');
+        try {
+            if (needConvert) {
+                ({ wavChunks, totalDurationMs } = await convertAndSplitWav(audioBase64, mimeType));
+                console.info('[Anima Runtime] WAV chunks:', wavChunks.length, 'total duration:', (totalDurationMs / 1000).toFixed(1) + 's');
+            } else {
+                wavChunks = [audioBase64];
+                totalDurationMs = 5000; // fallback
+            }
+        } catch (convErr) {
+            console.error('[Anima Runtime] WAV conversion failed:', convErr);
+            wavChunks = [audioBase64];
+            totalDurationMs = 5000;
+        }
+
+        if (abort.signal.aborted) { notifyTtsDone(); return; }
+
+        if (text) startTypewriter(text, totalDurationMs);
+
+        // ── Pipeline: prefetch next chunk's atfDt while current chunk plays ──
+        // This eliminates the gap between segments.
+
+        /** Parse WAV header to get chunk duration in ms. */
+        const wavDurationMs = (wavB64) => {
+            try {
+                const hdr = atob(wavB64.slice(0, 80));
+                const sr = hdr.charCodeAt(24) | (hdr.charCodeAt(25) << 8) | (hdr.charCodeAt(26) << 16) | (hdr.charCodeAt(27) << 24);
+                const ds = hdr.charCodeAt(40) | (hdr.charCodeAt(41) << 8) | (hdr.charCodeAt(42) << 16) | (hdr.charCodeAt(43) << 24);
+                const nc = hdr.charCodeAt(22) | (hdr.charCodeAt(23) << 8);
+                if (sr > 0 && nc > 0) return (ds / (sr * nc * 2)) * 1000;
+            } catch { /* fallback */ }
+            return ATF_MAX_CHUNK_SECS * 1000;
+        };
+
+        // Kick off first atfDt call
+        setStatus(`Generating lip-sync${wavChunks.length > 1 ? ' (1/' + wavChunks.length + ')' : ''}...`, true);
+        let pendingAtf = atfDt(wavChunks[0], modelId, `ls-ext-${Date.now()}-0`, config, { signal: abort.signal });
+
+        for (let i = 0; i < wavChunks.length; i++) {
+            if (abort.signal.aborted) { notifyTtsDone(); return; }
+
+            // Await the current chunk's atfDt (already in-flight)
+            const atfResult = await pendingAtf;
+            if (abort.signal.aborted) { notifyTtsDone(); return; }
+            console.info('[Anima Runtime] atfDt chunk', i + 1, '/', wavChunks.length, 'ready');
+
+            const atfData = atfResult?.data;
+            const chunkDurationMs = wavDurationMs(wavChunks[i]);
+
+            // Start prefetching next chunk BEFORE playing current one
+            if (i + 1 < wavChunks.length) {
+                setStatus(`Generating lip-sync (${i + 2}/${wavChunks.length})...`, true);
+                pendingAtf = atfDt(wavChunks[i + 1], modelId, `ls-ext-${Date.now()}-${i + 1}`, config, { signal: abort.signal });
+            }
+
+            // Play current chunk's animation
+            if (atfData?.AK && renderer) {
+                setStatus('Speaking', true);
+                renderer.receiveData(atfData, false, () => renderer.startPlay2());
+            } else {
+                setStatus('Speaking (no animation)', true);
+            }
+
+            // Wait for current chunk to finish before starting next
+            if (i < wavChunks.length - 1) {
+                await new Promise((resolve) => {
+                    const timer = setTimeout(resolve, chunkDurationMs);
+                    const onAbort = () => { clearTimeout(timer); resolve(undefined); };
+                    abort.signal.addEventListener('abort', onAbort, { once: true });
+                });
+            } else {
+                // Last chunk — set cleanup timer
+                const cleanup = () => {
+                    if (activeLipSyncTimer) { clearTimeout(activeLipSyncTimer); activeLipSyncTimer = null; }
+                    if (renderer) renderer.stopPlay();
+                    stopTypewriter(true);
+                    setBroadcasting(false);
+                    setStatus('Idle');
+                    setTimeout(() => { if (!isAckPlaying) hideBubble(); }, 2500);
+                    notifyTtsDone();
+                };
+                activeLipSyncTimer = setTimeout(cleanup, chunkDurationMs + 800);
+            }
+        }
+
+    } catch (error) {
+        if (abort.signal.aborted) { notifyTtsDone(); return; }
+        console.error('[Anima Runtime] External TTS lip-sync error:', error);
+        setStatus('Lip-sync error: ' + (error?.message || error));
+        setBroadcasting(false);
+        notifyTtsDone();
+    }
+}
+
+/** Notify parent that the current external TTS chunk finished. */
+function notifyTtsDone() {
+    try {
+        window.parent.postMessage({ type: 'anima-runtime-tts-done' }, '*');
+    } catch { /* sandboxed */ }
+}
+
+// ──── Acknowledgment system ────
+
+async function playAcknowledgment() {
+    const payload = latestPayload;
+    if (!payload) return;
+    const config = payload.config;
+    const binding = payload.binding;
+    const voiceId = binding?.voiceId || config?.defaultVoiceId || '1';
+    const modelId = binding?.modelId || binding?.remoteAvatarId || '';
+
+    if (!modelId) return;
+
+    cancelAcknowledgment();
+    isAckPlaying = true;
+    setBroadcasting(true);
+
+    const phrase = ACK_PHRASES[Math.floor(Math.random() * ACK_PHRASES.length)];
+    showDots();
+
+    const abort = new AbortController();
+    ackAbort = abort;
+
+    try {
+        await new Promise(r => setTimeout(r, 400));
+        if (abort.signal.aborted) return;
+
+        setStatus('Thinking...', true);
+
+        const ttsResult = await ttsTransform(phrase, voiceId, config, { signal: abort.signal });
+        if (abort.signal.aborted) return;
+
+        const audioBase64 = ttsResult?.data?.audioBase64 || '';
+        const audioLen = ttsResult?.data?.audioLen || 0;
+
+        if (!audioBase64 || abort.signal.aborted) {
+            isAckPlaying = false;
+            return;
+        }
+
+        const traceId = `ack-${Date.now()}`;
+        const atfResult = await atfDt(audioBase64, modelId, traceId, config, { signal: abort.signal });
+        if (abort.signal.aborted) return;
+
+        const atfData = atfResult?.data;
+
+        hideDots();
+        const durationMs = (audioLen || 2) * 1000;
+        startTypewriter(phrase, durationMs);
+
+        if (atfData?.AK && renderer) {
+            renderer.receiveData(atfData, false, () => renderer.startPlay2());
+        }
+
+        ackTimer = setTimeout(() => {
+            if (renderer) renderer.stopPlay();
+            stopAudio();
+            stopTypewriter(true);
+            isAckPlaying = false;
+            showDots();
+            setStatus('Waiting for reply...', true);
+        }, durationMs + 300);
+
+    } catch (error) {
+        if (abort.signal.aborted) return;
+        console.warn('[Anima Runtime] Acknowledgment error:', error);
+        isAckPlaying = false;
+        clearBubble();
+        setBroadcasting(false);
+    }
+}
+
+function cancelAcknowledgment() {
+    if (ackAbort) { ackAbort.abort(); ackAbort = null; }
+    if (ackTimer) { clearTimeout(ackTimer); ackTimer = null; }
+    stopAudio();
+    if (renderer) renderer.stopPlay();
+    isAckPlaying = false;
+}
+
+// ──── Auto lip-sync on new replies ────
+
+function maybeAutoLipSync(payload) {
+    if (!payload?.config?.autoLipSync) return;
+    const rid = payload?.status?.replyEventId || 0;
+    if (rid <= lastAutoReplyEventId) return;
+    lastAutoReplyEventId = rid;
+
+    const msgs = payload?.conversation?.messages || [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i]?.role === 'assistant' && msgs[i]?.text) {
+            const text = msgs[i].text.slice(0, 2000);
+            void runLipSync(text);
+            return;
+        }
+    }
+}
+
+function maybeAcknowledge(payload) {
+    const nowBusy = Boolean(payload?.status?.isBusy);
+    lastBusyState = nowBusy;
+    return;
+}
+
+// ──── Master payload handler ────
+
+function applyPayload(payload) {
+    latestPayload = payload;
+    const binding = payload?.binding;
+    const bk = binding?.key || '';
+
+    // Update avatar name for bubble
+    if (binding?.avatarName) {
+        setAvatarName(binding.avatarName);
+    }
+
+    // Update loading screen if still loading
+    if (isLoading && binding) {
+        if (binding.posterUrl) {
+            const av = $('loading_avatar');
+            av.src = binding.posterUrl;
+            av.classList.remove('is-hidden');
+        }
+        $('loading_name').textContent = binding.avatarName || avatarName || 'Avatar';
+    }
+
+    // Reset on binding change
+    if (bk !== lastBindingKey) {
+        lastBindingKey = bk;
+        lastAutoReplyEventId = 0;
+        lastBusyState = false;
+        cancelLipSync();
+        cancelAcknowledgment();
+        clearBubble();
+    }
+
+    ensureRenderer(binding);
+    maybeAcknowledge(payload);
+    maybeAutoLipSync(payload);
+}
+
+// ──── PostMessage bridge ────
+
+window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+
+    if (data.type === 'anima-runtime-update') {
+        applyPayload(data);
+        return;
+    }
+
+    if (data.type === 'anima-runtime-control') {
+        if (data.command === 'destroy') {
+            fullCleanup();
+            return;
+        }
+        if (data.command === 'lipsync') {
+            const msgs = latestPayload?.conversation?.messages || [];
+            for (let i = msgs.length - 1; i >= 0; i--) {
+                if (msgs[i]?.role === 'assistant' && msgs[i]?.text) {
+                    void runLipSync(msgs[i].text.slice(0, 2000), true);
+                    return;
+                }
+            }
+        }
+        if (data.command === 'external-tts') {
+            console.info('[Anima Runtime] Received external-tts command, b64Len:', data.audioBase64?.length, 'text:', data.text?.slice(0, 50), 'mime:', data.mimeType);
+            void runExternalTtsLipSync(data.audioBase64, data.text, data.mimeType);
+            return;
+        }
+    }
+});
+
+$('camera_toggle_btn').addEventListener('click', () => {
+    if (isLoading) return;
+    void toggleCameraStream();
+});
+$('hangup_btn').addEventListener('click', hangupCall);
+$('camera_capture_btn').addEventListener('click', () => captureCameraFrame());
+$('camera_collapse_btn').addEventListener('pointerdown', (event) => {
+    if (!isCameraPanelCollapsed) return;
+    beginCameraPanelDrag(event);
+});
+$('camera_collapse_btn').addEventListener('click', (event) => {
+    if (suppressCameraCollapseClick) {
+        suppressCameraCollapseClick = false;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+    }
+    toggleCameraPanelCollapsed();
+});
+$('camera_drag_handle').addEventListener('pointerdown', beginCameraPanelDrag);
+window.addEventListener('pointermove', dragCameraPanel);
+window.addEventListener('pointerup', endCameraPanelDrag);
+window.addEventListener('pointercancel', endCameraPanelDrag);
+
+// ──── Interrupt button ────
+$('interrupt_btn').addEventListener('click', () => {
+    stopPlaying();
+});
+
+// ──── Chat: Text Mode ────
+
+function sendChatText(text) {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
+    try {
+        window.parent.postMessage({ type: 'anima-runtime-command', command: 'chat-send', text: trimmed }, '*');
+    } catch { /* sandboxed */ }
+}
+
+// ──── Chat: Voice Mode ────
+
+let isRecording = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+
+$('chat_mic_btn').addEventListener('click', async () => {
+    if (isLoading) return;
+    if (isRecording) {
+        stopRecording();
+        return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(stream, { mimeType: getSupportedMime() });
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+        mediaRecorder.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+            if (recordedChunks.length === 0) return;
+            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            recordedChunks = [];
+            await processVoiceBlob(blob);
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        updateRecordingButton(true);
+        setStatus('Recording...', true);
+    } catch (err) {
+        console.warn('[Anima Runtime] Mic access failed:', err);
+        setStatus('Microphone access denied');
+    }
+});
+
+function getSupportedMime() {
+    for (const mime of ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']) {
+        if (MediaRecorder.isTypeSupported(mime)) return mime;
+    }
+    return '';
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+    isRecording = false;
+    updateRecordingButton(false);
+}
+
+async function processVoiceBlob(blob) {
+    const config = latestPayload?.config;
+    if (!config?.authToken) {
+        setStatus('Not logged in — cannot use voice');
+        return;
+    }
+
+    setStatus('Recognizing speech...', true);
+    $('chat_mic_btn').classList.add('is-sending');
+
+    try {
+        const rawBase64 = await blobToBase64Raw(blob);
+        const result = await asrBase64(rawBase64, config);
+        const text = result?.data?.text || '';
+        if (text) {
+            sendChatText(text);
+        } else {
+            setStatus('No speech detected');
+        }
+    } catch (err) {
+        console.warn('[Anima Runtime] ASR error:', err);
+        setStatus('Speech recognition failed');
+    } finally {
+        $('chat_mic_btn').classList.remove('is-sending');
+    }
+}
+
+function blobToBase64Raw(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const dataUrl = /** @type {string} */ (reader.result);
+            const base64 = dataUrl.split(',')[1] || '';
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+window.addEventListener('beforeunload', () => stopCameraStream());
+updateRecordingButton(false);
+updateCameraUi(false);
+setCameraPanelVisible(false);
+setStatus('Runtime ready');
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<div id="anima_panel" class="anima-panel">
+    <!-- ========== Draggable Title Bar ========== -->
+    <div class="anima-panel__titlebar" id="anima_titlebar">
+        <span class="anima-panel__titlebar-label"><img class="anima-logo-icon" src="" alt="VideoCall" /> VideoCall</span>
+        <div class="anima-panel__titlebar-actions">
+            <button id="anima_close_button" class="anima-btn anima-btn--icon" data-i18n-title="common.close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    </div>
+
+    <!-- ========== VIEW: Loading (auto-login) ========== -->
+    <div class="anima-view" id="anima_view_login">
+        <div class="anima-view__center">
+            <div class="anima-login">
+                <div class="anima-login__logo"><img class="anima-logo-login" src="" alt="VideoCall" /></div>
+                <div class="anima-connecting">
+                    <div class="anima-connecting__spinner"></div>
+                    <div id="anima_login_status" class="anima-login__status" style="display:none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== VIEW: Character ========== -->
+    <div class="anima-view" id="anima_view_character" style="display:none">
+        <div id="anima_character_content" class="anima-character__content">
+            <div class="anima-character__empty" data-i18n="character.noChat">Please open a character chat first.</div>
+        </div>
+    </div>
+
+    <!-- ========== VIEW: Calling (Telegram-style) ========== -->
+    <div class="anima-view" id="anima_view_calling" style="display:none">
+        <div class="anima-calling">
+            <div class="anima-calling__encrypt">
+                <i class="fa-solid fa-lock"></i>
+                <span data-i18n="calling.encrypted">End-to-end encrypted</span>
+            </div>
+            <div class="anima-calling__avatar-wrap">
+                <span class="anima-calling__pulse"></span>
+                <span class="anima-calling__pulse anima-calling__pulse--delayed"></span>
+                <div class="anima-calling__avatar-ring">
+                    <img id="anima_calling_avatar" class="anima-calling__avatar" src="" alt="" />
+                </div>
+            </div>
+            <div id="anima_calling_name" class="anima-calling__name"></div>
+            <div id="anima_calling_status" class="anima-calling__status" data-i18n="character.connecting">视频电话正在接通中...</div>
+            <div id="anima_calling_hint" class="anima-calling__hint is-hidden" data-i18n="calling.firstGenerationHint">首次生成需要等待五分钟</div>
+            <div class="anima-calling__controls">
+                <div class="anima-calling__control">
+                    <button type="button" class="anima-calling__control-btn" data-calling-toggle="camera" data-i18n-title="calling.actionCamera">
+                        <i class="fa-solid fa-video"></i>
+                    </button>
+                    <span class="anima-calling__control-label" data-i18n="calling.actionCamera">Camera</span>
+                </div>
+                <div class="anima-calling__control">
+                    <button type="button" id="anima_calling_end_btn" class="anima-calling__control-btn anima-calling__control-btn--end" data-i18n-title="calling.actionEnd">
+                        <i class="fa-solid fa-phone-slash"></i>
+                    </button>
+                    <span class="anima-calling__control-label" data-i18n="calling.actionEnd">End</span>
+                </div>
+                <div class="anima-calling__control">
+                    <button type="button" class="anima-calling__control-btn" data-calling-toggle="mute" data-i18n-title="calling.actionMute">
+                        <i class="fa-solid fa-microphone-slash"></i>
+                    </button>
+                    <span class="anima-calling__control-label" data-i18n="calling.actionMute">Mute</span>
+                </div>
+                <div class="anima-calling__control">
+                    <button type="button" class="anima-calling__control-btn" data-calling-toggle="speaker" data-i18n-title="calling.actionSpeaker">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                    <span class="anima-calling__control-label" data-i18n="calling.actionSpeaker">Speaker</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== VIEW: Runtime (3D avatar display) ========== -->
+    <div class="anima-view" id="anima_view_runtime" style="display:none">
+        <div class="anima-runtime__header">
+            <button id="anima_runtime_back_btn" class="anima-btn anima-btn--icon" data-i18n-title="runtime.backTitle" style="display:none"><i class="fa-solid fa-arrow-left"></i></button>
+            <span id="anima_runtime_avatar_name" class="anima-runtime__name" data-i18n="runtime.defaultName" style="display:none">Digital Human</span>
+        </div>
+
+        <div class="anima-runtime__body">
+            <div class="anima-runtime__stage">
+                <div id="anima_runtime_empty" class="anima-runtime__empty" data-i18n="character.connecting">视频电话正在接通中...</div>
+                <iframe id="anima_runtime_frame" class="anima-runtime__frame"
+                    sandbox="allow-scripts allow-same-origin allow-popups"
+                    allow="autoplay; camera; microphone; clipboard-read; clipboard-write"
+                    style="display:none"></iframe>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========== Resize handle ========== -->
+    <div class="anima-panel__resize-handle" id="anima_resize_handle"></div>
+</div>
